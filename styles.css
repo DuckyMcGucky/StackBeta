@@ -919,9 +919,12 @@ button {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   padding-right: 0.15rem;
-  padding-bottom: 0.5rem;
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
   scrollbar-width: thin;
   scrollbar-color: rgba(232, 165, 75, 0.3) transparent;
   /* no transform animation on this scroller — it breaks fixed/FLIP children */
@@ -955,8 +958,11 @@ button {
     filter 0.25s ease;
   /* transform is reserved for drag-slide FLIP — don't transition it by default */
   cursor: grab;
-  touch-action: none;
+  /* pan-y lets iOS/Android scroll the list; drag code takes over after long-press */
+  touch-action: pan-y;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .project-card .card-actions,
@@ -1002,6 +1008,17 @@ body:not(.is-dragging-card) .project-card:hover {
 }
 
 /* Floating dragged card — body-level, vertical-only, ~90% opacity */
+/* Long-press armed — about to lift for reorder */
+.project-card.is-drag-armed:not(.is-dragging) {
+  border-color: rgba(232, 165, 75, 0.45);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+  transform: scale(1.02);
+  transition:
+    transform 0.15s var(--ease-spring),
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
 .project-card.is-dragging {
   cursor: grabbing !important;
   opacity: 0.9 !important;
@@ -1009,7 +1026,7 @@ body:not(.is-dragging-card) .project-card:hover {
   border-color: rgba(232, 165, 75, 0.55) !important;
   filter: brightness(1.06);
   will-change: top;
-  touch-action: none;
+  touch-action: none !important;
   /* kill hover lift while floating */
   transform: scale(1.015) !important;
 }
@@ -1185,7 +1202,8 @@ body.is-dragging-card .list-wrap {
   gap: 3px;
   justify-items: center;
   cursor: grab;
-  touch-action: none;
+  /* Match cards: allow vertical scroll; reorder is long-press */
+  touch-action: pan-y;
   user-select: none;
   transition: color 0.15s ease, transform 0.2s var(--ease);
 }
