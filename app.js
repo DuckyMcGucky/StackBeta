@@ -1435,6 +1435,10 @@ Other rules:
     }
 
     if (touchLike) {
+      // Firefox (esp. Android/iOS) still starts text selection on long-press
+      // unless selectstart is blocked early.
+      li.addEventListener("selectstart", onSelectStartWhileArming);
+      document.body.classList.add("is-arming-drag");
       dragArm.timer = setTimeout(() => {
         commitTouchLongPressDrag();
       }, TOUCH_LONG_PRESS_MS);
@@ -1467,7 +1471,13 @@ Other rules:
     }
     if (dragArm?.li) {
       dragArm.li.classList.remove("is-drag-armed");
+      try {
+        dragArm.li.removeEventListener("selectstart", onSelectStartWhileArming);
+      } catch {
+        /* ignore */
+      }
     }
+    document.body.classList.remove("is-arming-drag");
     document.removeEventListener("selectstart", onSelectStartWhileArming, true);
     document.removeEventListener("selectionchange", clearNativeSelection, true);
     window.removeEventListener("pointermove", onListDragArmMove);
@@ -4281,7 +4291,15 @@ Other rules:
 
     root.hidden = false;
     document.body.style.overflow = "hidden";
-    document.body.classList.add("modal-open");
+    // Freeze page scroll under modals (esp. document-scroll mode on phones)
+    if (!document.body.classList.contains("modal-open")) {
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+      document.body.dataset.scrollLockY = String(scrollY);
+      document.body.classList.add("modal-open");
+      if (document.documentElement.classList.contains("page-scroll")) {
+        document.body.style.top = `-${scrollY}px`;
+      }
+    }
 
     if (panel) {
       const { dx, dy } = originOffsetFromCenter(originEl);
@@ -4352,6 +4370,12 @@ Other rules:
     if (!anyOpen) {
       document.body.style.overflow = "";
       document.body.classList.remove("modal-open");
+      const y = Number(document.body.dataset.scrollLockY || 0);
+      document.body.style.top = "";
+      delete document.body.dataset.scrollLockY;
+      if (document.documentElement.classList.contains("page-scroll")) {
+        window.scrollTo(0, y);
+      }
     }
   }
 
@@ -4701,7 +4725,37 @@ Other rules:
   }
 
   // ─── Boot ───────────────────────────────────────────────
+  /** Firefox mobile often mis-reports pointer media queries — set class in JS. */
+  function syncPageScrollMode() {
+    try {
+      const touch =
+        "ontouchstart" in window ||
+        (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
+      let coarse = false;
+      try {
+        coarse = window.matchMedia("(pointer: coarse)").matches;
+      } catch {
+        /* ignore */
+      }
+      const narrow =
+        Math.min(window.screen?.width || 9999, window.screen?.height || 9999) <=
+          920 || window.innerWidth <= 832;
+      const ua = navigator.userAgent || "";
+      const mobileUa =
+        /Android|iPhone|iPad|iPod|Mobile|FxiOS|Firefox.*Android/i.test(ua);
+      const on = Boolean(touch || coarse || narrow || mobileUa);
+      document.documentElement.classList.toggle("page-scroll", on);
+    } catch {
+      /* ignore */
+    }
+  }
+
   async function boot() {
+    syncPageScrollMode();
+    window.addEventListener("resize", syncPageScrollMode, { passive: true });
+    window.addEventListener("orientationchange", syncPageScrollMode, {
+      passive: true,
+    });
     await hydrateStore();
     applyPreferences(settings);
     bindEvents();
