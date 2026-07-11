@@ -1183,7 +1183,7 @@ Other rules:
     const supplyProg = supplyProgress(project);
 
     li.innerHTML = `
-      <div class="drag-handle" aria-hidden="true" title="Drag to reorder">
+      <div class="drag-handle" role="button" tabindex="-1" title="Hold to reorder" aria-label="Hold to reorder">
         <span></span><span></span><span></span>
       </div>
       <div class="rank-badge" title="Rank ${project.rank}">${
@@ -1330,12 +1330,19 @@ Other rules:
       openDetailModal(project, li);
     });
 
-    // Drag from anywhere on the card (buttons excluded). Small move
-    // threshold keeps tap-to-open-detail snappy.
+    // Reorder:
+    // - Mouse/desktop: drag from anywhere on the card (except action buttons)
+    // - Touch (iPhone Safari/Firefox): ONLY from the grip handle + long-press
+    //   so swiping the card always scrolls the page (Firefox iOS needs this).
     if (!project.done) {
       li.addEventListener("pointerdown", (e) => {
         if (e.button !== 0) return;
         if (e.target.closest("[data-action]")) return;
+        const touchLike =
+          e.pointerType === "touch" || e.pointerType === "pen";
+        if (touchLike && !e.target.closest(".drag-handle")) {
+          return; // let the browser scroll / allow tap-to-open
+        }
         armListDrag(e, li);
       });
     }
@@ -4728,6 +4735,8 @@ Other rules:
   /** Firefox mobile often mis-reports pointer media queries — set class in JS. */
   function syncPageScrollMode() {
     try {
+      const ua = navigator.userAgent || "";
+      const fxios = /FxiOS/i.test(ua);
       const touch =
         "ontouchstart" in window ||
         (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
@@ -4740,11 +4749,11 @@ Other rules:
       const narrow =
         Math.min(window.screen?.width || 9999, window.screen?.height || 9999) <=
           920 || window.innerWidth <= 832;
-      const ua = navigator.userAgent || "";
       const mobileUa =
         /Android|iPhone|iPad|iPod|Mobile|FxiOS|Firefox.*Android/i.test(ua);
-      const on = Boolean(touch || coarse || narrow || mobileUa);
+      const on = Boolean(fxios || touch || coarse || narrow || mobileUa);
       document.documentElement.classList.toggle("page-scroll", on);
+      document.documentElement.classList.toggle("fxios", fxios);
     } catch {
       /* ignore */
     }
