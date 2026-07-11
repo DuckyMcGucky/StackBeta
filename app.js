@@ -1350,8 +1350,14 @@ Other rules:
   // 2. Require ≥50% surface cover AND drag-center past the neighbor's midline
   // 3. Ignore further swaps until the current slide animation finishes
   //
-  /** Pending press that becomes a drag after a small movement threshold. */
+  // Touch / pen: long-press ~500ms to lift (so pan-y scroll works on iPhone).
+  // Mouse: small move threshold (desktop UX).
+  //
+  /** Pending press that becomes a drag after long-press or move threshold. */
   let dragArm = null;
+  const TOUCH_LONG_PRESS_MS = 500;
+  const TOUCH_CANCEL_MOVE_PX = 12;
+  const MOUSE_DRAG_MOVE_PX = 6;
 
   /**
    * Block only the browser's synthetic click right after a drag release.
@@ -1388,27 +1394,55 @@ Other rules:
     )
       return;
 
+    const touchLike =
+      e.pointerType === "touch" || e.pointerType === "pen";
+
     dragArm = {
       li,
       startX: e.clientX,
       startY: e.clientY,
+      lastX: e.clientX,
+      lastY: e.clientY,
       pointerId: e.pointerId,
+      touchLike,
+      timer: null,
     };
 
-    try {
-      li.setPointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
+    // Do NOT setPointerCapture during arm on touch — that steals the gesture
+    // from the scrollable list-wrap and freezes the main page on iOS.
+    if (!touchLike) {
+      try {
+        li.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
     }
 
-    window.addEventListener("pointermove", onListDragArmMove, {
-      passive: false,
-    });
+    if (touchLike) {
+      dragArm.timer = setTimeout(() => {
+        commitTouchLongPressDrag();
+      }, TOUCH_LONG_PRESS_MS);
+      // passive:true so the browser can scroll freely until we cancel/commit
+      window.addEventListener("pointermove", onListDragArmMove, {
+        passive: true,
+      });
+    } else {
+      window.addEventListener("pointermove", onListDragArmMove, {
+        passive: false,
+      });
+    }
     window.addEventListener("pointerup", onListDragArmEnd);
     window.addEventListener("pointercancel", onListDragArmEnd);
   }
 
   function clearDragArm() {
+    if (dragArm?.timer) {
+      clearTimeout(dragArm.timer);
+      dragArm.timer = null;
+    }
+    if (dragArm?.li) {
+      dragArm.li.classList.remove("is-drag-armed");
+    }
     window.removeEventListener("pointermove", onListDragArmMove);
     window.removeEventListener("pointerup", onListDragArmEnd);
     window.removeEventListener("pointercancel", onListDragArmEnd);
@@ -1417,18 +1451,64 @@ Other rules:
 
   function onListDragArmMove(e) {
     if (!dragArm) return;
-    const { li, startX, startY } = dragArm;
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
-    // Small threshold: keep taps as open-detail, start reorder once dragging
-    if (Math.hypot(dx, dy) < 6) return;
+    if (e.pointerId !== dragArm.pointerId) return;
+
+    dragArm.lastX = e.clientX;
+    dragArm.lastY = e.clientY;
+    const dx = e.clientX - dragArm.startX;
+    const dy = e.clientY - dragArm.startY;
+    const dist = Math.hypot(dx, dy);
+
+    if (dragArm.touchLike) {
+      // Finger moved enough → user is scrolling, abort reorder arm
+      if (dist > TOUCH_CANCEL_MOVE_PX) {
+        clearDragArm();
+      }
+      return;
+    }
+
+    // Mouse: start reorder after a small drag (desktop)
+    if (dist < MOUSE_DRAG_MOVE_PX) return;
     e.preventDefault();
+    const li = dragArm.li;
     clearDragArm();
     startListDrag(e, li);
   }
 
   function onListDragArmEnd() {
     clearDragArm();
+  }
+
+  /** Touch/pen held still long enough → begin reorder. */
+  function commitTouchLongPressDrag() {
+    if (!dragArm || !dragArm.touchLike) return;
+    const arm = dragArm;
+    const li = arm.li;
+    if (
+      !li ||
+      li.classList.contains("is-done") ||
+      li.classList.contains("is-dropping")
+    ) {
+      clearDragArm();
+      return;
+    }
+
+    const fakeEvent = {
+      clientX: arm.lastX,
+      clientY: arm.lastY,
+      pointerId: arm.pointerId,
+      pointerType: "touch",
+      preventDefault() {},
+      stopPropagation() {},
+    };
+
+    clearDragArm();
+    li.classList.add("is-drag-armed");
+    // Brief armed flash, then lift
+    requestAnimationFrame(() => {
+      startListDrag(fakeEvent, li);
+      li.classList.remove("is-drag-armed");
+    });
   }
 
   function startListDrag(e, li) {
@@ -1458,6 +1538,7 @@ Other rules:
       c.style.transform = "";
     });
 
+    li.classList.remove("is-drag-armed");
     li.classList.add("is-dragging");
     document.body.classList.add("is-dragging-card");
 
