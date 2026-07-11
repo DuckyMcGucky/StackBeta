@@ -2857,12 +2857,92 @@ html[data-reduce-motion="1"] .modal.is-leaving {
 }
 
 /*
- * Phones / narrow screens: let the DOCUMENT scroll.
- * Nested overflow:auto inside flex+100dvh is unreliable on iOS Safari
- * (modals still scroll fine because they are separate overflow boxes).
+ * Phones / touch: let the DOCUMENT scroll (not a nested list box).
+ * Triggered by:
+ *  - html.page-scroll (set in JS — reliable on Firefox mobile)
+ *  - media queries (Safari / Chrome fallback)
+ * Nested overflow:auto inside flex+100dvh is flaky on mobile browsers.
  */
+
+/* Primary path: class set before paint (Firefox iOS/Android, all phones) */
+html.page-scroll {
+  height: auto !important;
+  min-height: 100%;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+html.page-scroll body {
+  height: auto !important;
+  min-height: 100%;
+  min-height: 100dvh;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+/* While a modal is open, lock page scroll */
+html.page-scroll body.modal-open {
+  overflow: hidden !important;
+  touch-action: none;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
+html.page-scroll .shell {
+  height: auto !important;
+  min-height: 100dvh;
+  min-height: 100svh;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+html.page-scroll .app {
+  height: auto !important;
+  min-height: 0;
+  overflow: visible !important;
+}
+
+html.page-scroll .list-wrap {
+  flex: 0 0 auto !important;
+  min-height: 0;
+  overflow: visible !important;
+  touch-action: pan-y;
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+}
+
+html.page-scroll .project-list {
+  padding-bottom: 2.5rem;
+}
+
+html.page-scroll .project-card,
+html.page-scroll .project-card * {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+/* While finger is holding for reorder — extra selection lock (Firefox) */
+body.is-arming-drag,
+body.is-arming-drag * {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  user-select: none !important;
+}
+
+body.is-arming-drag {
+  -webkit-touch-callout: none !important;
+}
+
+/* Fallback if JS class missing (Safari / Chrome media queries) */
 @media (max-width: 52rem), (hover: none) and (pointer: coarse) {
-  html {
+  html:not(.page-scroll) {
     height: auto;
     min-height: 100%;
     overflow-x: hidden;
@@ -2870,7 +2950,7 @@ html[data-reduce-motion="1"] .modal.is-leaving {
     -webkit-overflow-scrolling: touch;
   }
 
-  body {
+  html:not(.page-scroll) body {
     height: auto;
     min-height: 100%;
     min-height: 100dvh;
@@ -2880,13 +2960,12 @@ html[data-reduce-motion="1"] .modal.is-leaving {
     -webkit-overflow-scrolling: touch;
   }
 
-  /* While a modal is open, lock page scroll */
-  body.modal-open {
+  html:not(.page-scroll) body.modal-open {
     overflow: hidden !important;
     touch-action: none;
   }
 
-  .shell {
+  html:not(.page-scroll) .shell {
     height: auto;
     min-height: 100dvh;
     min-height: 100svh;
@@ -2894,13 +2973,13 @@ html[data-reduce-motion="1"] .modal.is-leaving {
     overflow: visible;
   }
 
-  .app {
+  html:not(.page-scroll) .app {
     height: auto;
     min-height: 0;
     overflow: visible;
   }
 
-  .list-wrap {
+  html:not(.page-scroll) .list-wrap {
     flex: 0 0 auto;
     min-height: 0;
     overflow: visible;
@@ -2908,8 +2987,7 @@ html[data-reduce-motion="1"] .modal.is-leaving {
     padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
   }
 
-  /* Extra room so last cards clear the home indicator */
-  .project-list {
+  html:not(.page-scroll) .project-list {
     padding-bottom: 2rem;
   }
 }
