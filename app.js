@@ -1385,6 +1385,13 @@ Other rules:
     setTimeout(cleanup, 0);
   }
 
+  function onSelectStartWhileArming(e) {
+    // Kill iOS/Android blue text-selection during long-press reorder
+    if (dragArm?.touchLike || dragState || document.body.classList.contains("is-dragging-card")) {
+      e.preventDefault();
+    }
+  }
+
   function armListDrag(e, li) {
     if (
       dragState ||
@@ -1409,10 +1416,19 @@ Other rules:
     };
 
     // Do NOT setPointerCapture during arm on touch — that steals the gesture
-    // from the scrollable list-wrap and freezes the main page on iOS.
+    // from page scroll and freezes the main page on iOS.
     if (!touchLike) {
       try {
         li.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+    } else {
+      // Suppress system text-selection / callout while holding a card
+      document.addEventListener("selectstart", onSelectStartWhileArming, true);
+      document.addEventListener("selectionchange", clearNativeSelection, true);
+      try {
+        window.getSelection?.()?.removeAllRanges?.();
       } catch {
         /* ignore */
       }
@@ -1435,6 +1451,15 @@ Other rules:
     window.addEventListener("pointercancel", onListDragArmEnd);
   }
 
+  function clearNativeSelection() {
+    try {
+      const sel = window.getSelection?.();
+      if (sel && sel.rangeCount) sel.removeAllRanges();
+    } catch {
+      /* ignore */
+    }
+  }
+
   function clearDragArm() {
     if (dragArm?.timer) {
       clearTimeout(dragArm.timer);
@@ -1443,6 +1468,8 @@ Other rules:
     if (dragArm?.li) {
       dragArm.li.classList.remove("is-drag-armed");
     }
+    document.removeEventListener("selectstart", onSelectStartWhileArming, true);
+    document.removeEventListener("selectionchange", clearNativeSelection, true);
     window.removeEventListener("pointermove", onListDragArmMove);
     window.removeEventListener("pointerup", onListDragArmEnd);
     window.removeEventListener("pointercancel", onListDragArmEnd);
@@ -1602,14 +1629,27 @@ Other rules:
       dragState.moved = true;
     }
 
-    // Auto-scroll near edges (don't shift gap while animating)
+    // Auto-scroll near edges (list-wrap on desktop; window/document on mobile)
     const wrap = els.list.closest(".list-wrap") || els.list;
     const wr = wrap.getBoundingClientRect();
     const edge = 48;
-    if (e.clientY < wr.top + edge) {
-      wrap.scrollTop -= Math.max(6, (edge - (e.clientY - wr.top)) * 0.4);
-    } else if (e.clientY > wr.bottom - edge) {
-      wrap.scrollTop += Math.max(6, (edge - (wr.bottom - e.clientY)) * 0.4);
+    const scrollUp = e.clientY < edge + 12;
+    const scrollDown = e.clientY > window.innerHeight - edge - 12;
+    const wrapScrollable = wrap.scrollHeight > wrap.clientHeight + 4;
+
+    if (wrapScrollable) {
+      if (e.clientY < wr.top + edge) {
+        wrap.scrollTop -= Math.max(6, (edge - (e.clientY - wr.top)) * 0.4);
+      } else if (e.clientY > wr.bottom - edge) {
+        wrap.scrollTop += Math.max(6, (edge - (wr.bottom - e.clientY)) * 0.4);
+      }
+    } else if (scrollUp) {
+      window.scrollBy(0, -Math.max(8, (edge + 12 - e.clientY) * 0.5));
+    } else if (scrollDown) {
+      window.scrollBy(
+        0,
+        Math.max(8, (e.clientY - (window.innerHeight - edge - 12)) * 0.5)
+      );
     }
 
     if (!dragState.animating) {
@@ -1828,6 +1868,9 @@ Other rules:
 
     li.classList.remove("is-dragging");
     document.body.classList.remove("is-dragging-card");
+    document.removeEventListener("selectstart", onSelectStartWhileArming, true);
+    document.removeEventListener("selectionchange", clearNativeSelection, true);
+    clearNativeSelection();
     li.removeAttribute("style");
 
     const last = li.getBoundingClientRect();
@@ -4238,6 +4281,7 @@ Other rules:
 
     root.hidden = false;
     document.body.style.overflow = "hidden";
+    document.body.classList.add("modal-open");
 
     if (panel) {
       const { dx, dy } = originOffsetFromCenter(originEl);
@@ -4305,7 +4349,10 @@ Other rules:
       const el = get();
       return el && !el.hidden;
     });
-    if (!anyOpen) document.body.style.overflow = "";
+    if (!anyOpen) {
+      document.body.style.overflow = "";
+      document.body.classList.remove("modal-open");
+    }
   }
 
   /**
