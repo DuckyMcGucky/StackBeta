@@ -147,6 +147,8 @@ html {
   color-scheme: dark;
   height: 100%;
   overflow: hidden;
+  /* Kill iOS tap flash */
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -161,6 +163,7 @@ body {
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
   transition: background 0.35s var(--ease), color 0.25s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button,
@@ -958,11 +961,20 @@ button {
     filter 0.25s ease;
   /* transform is reserved for drag-slide FLIP — don't transition it by default */
   cursor: grab;
-  /* pan-y lets iOS/Android scroll the list; drag code takes over after long-press */
+  /* pan-y lets iOS/Android scroll; drag code takes over after long-press */
   touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iOS long-press text selection (blue highlight) — block on whole card */
+.project-card,
+.project-card * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
 }
 
 .project-card .card-actions,
@@ -2842,6 +2854,64 @@ html[data-reduce-motion="1"] .modal.is-leaving {
 
 .project-card.shuffling {
   animation: shuffle-flash 0.7s var(--ease);
+}
+
+/*
+ * Phones / narrow screens: let the DOCUMENT scroll.
+ * Nested overflow:auto inside flex+100dvh is unreliable on iOS Safari
+ * (modals still scroll fine because they are separate overflow boxes).
+ */
+@media (max-width: 52rem), (hover: none) and (pointer: coarse) {
+  html {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body {
+    height: auto;
+    min-height: 100%;
+    min-height: 100dvh;
+    max-height: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* While a modal is open, lock page scroll */
+  body.modal-open {
+    overflow: hidden !important;
+    touch-action: none;
+  }
+
+  .shell {
+    height: auto;
+    min-height: 100dvh;
+    min-height: 100svh;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .app {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .list-wrap {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+    touch-action: pan-y;
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Extra room so last cards clear the home indicator */
+  .project-list {
+    padding-bottom: 2rem;
+  }
 }
 
 /* ─── Responsive (main column internals) ─────────────────── */
