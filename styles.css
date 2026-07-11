@@ -2865,16 +2865,18 @@ html[data-reduce-motion="1"] .modal.is-leaving {
  */
 
 /* Primary path: class set before paint (Firefox iOS/Android, all phones) */
-html.page-scroll {
+html.page-scroll,
+html.fxios {
   height: auto !important;
   min-height: 100%;
   overflow-x: hidden !important;
-  overflow-y: auto !important;
+  overflow-y: scroll !important;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
 }
 
-html.page-scroll body {
+html.page-scroll body,
+html.fxios body {
   height: auto !important;
   min-height: 100%;
   min-height: 100dvh;
@@ -2882,7 +2884,7 @@ html.page-scroll body {
   overflow-x: hidden !important;
   overflow-y: visible !important;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
+  touch-action: manipulation;
 }
 
 /* While a modal is open, lock page scroll */
@@ -2894,7 +2896,8 @@ html.page-scroll body.modal-open {
   width: 100%;
 }
 
-html.page-scroll .shell {
+html.page-scroll .shell,
+html.fxios .shell {
   height: auto !important;
   min-height: 100dvh;
   min-height: 100svh;
@@ -2902,30 +2905,61 @@ html.page-scroll .shell {
   overflow: visible !important;
 }
 
-html.page-scroll .app {
+html.page-scroll .app,
+html.fxios .app {
   height: auto !important;
   min-height: 0;
   overflow: visible !important;
 }
 
-html.page-scroll .list-wrap {
+html.page-scroll .list-wrap,
+html.fxios .list-wrap {
   flex: 0 0 auto !important;
   min-height: 0;
   overflow: visible !important;
-  touch-action: pan-y;
+  touch-action: manipulation;
   padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
 }
 
-html.page-scroll .project-list {
+html.page-scroll .project-list,
+html.fxios .project-list {
   padding-bottom: 2.5rem;
 }
 
 html.page-scroll .project-card,
-html.page-scroll .project-card * {
+html.page-scroll .project-card *,
+html.fxios .project-card,
+html.fxios .project-card * {
   -webkit-user-select: none !important;
   -moz-user-select: none !important;
   user-select: none !important;
   -webkit-touch-callout: none !important;
+}
+
+/* Cards scroll with the page; don't capture the gesture (Firefox iOS) */
+html.page-scroll .project-card,
+html.fxios .project-card {
+  touch-action: manipulation !important;
+  cursor: pointer;
+}
+
+/* Big grip hit-target — only place touch can start a reorder */
+html.page-scroll .drag-handle,
+html.fxios .drag-handle {
+  width: 36px;
+  min-height: 44px;
+  padding: 12px 6px;
+  margin: -6px 0 -6px -4px;
+  align-content: center;
+  touch-action: none; /* handle owns the long-press; rest of card scrolls */
+  color: var(--text-muted);
+  border-radius: 10px;
+}
+
+html.page-scroll .drag-handle:active,
+html.fxios .drag-handle:active {
+  background: rgba(232, 165, 75, 0.12);
+  color: var(--amber);
 }
 
 /* While finger is holding for reorder — extra selection lock (Firefox) */
